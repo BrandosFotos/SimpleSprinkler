@@ -1,0 +1,66 @@
+# Configuration files with sensitive data
+config.json
+*.env
+.env
+
+# Python virtual environment
+sprinkler_env/
+venv/
+env/
+ENV/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.pytest_cache/
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+.DS_Store
+
+# System-specific files
+.directory
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Ignore the current run sprinkler.sh
+run_sprinkler.sh
+
+
+# Technical MD
+TECHNICAL.md

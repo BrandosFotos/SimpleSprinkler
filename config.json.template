@@ -1,0 +1,9 @@
+{
+    "opensprinkler": {
+        "host": "192.168.1.xx",
+        "port": 8080,
+        "password": "opendoor", 
+        
+        "refresh_interval": 1
+    }
+}
