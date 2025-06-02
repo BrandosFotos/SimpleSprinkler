@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 import time
 import json
 import os
+import re
 
 class OpenSprinklerAPI:
     @classmethod
@@ -29,9 +30,6 @@ class OpenSprinklerAPI:
             port=os_config.get('port', 80)
         )
 
-
-
-
     def __init__(self, host: str, password: str, port: int = 80):
         """Initialize OpenSprinkler API connection
         
@@ -44,39 +42,57 @@ class OpenSprinklerAPI:
         self.password = password
         self.port = port
         self.base_url = f"http://{host}:{port}"
-
-
-
-
+        
     def _get_password_hash(self) -> str:
         """Get MD5 hash of password for API authentication"""
         return hashlib.md5(self.password.encode()).hexdigest()
         
-
-
-
+    def _is_generic_station_name(self, name: str) -> bool:
+        """Check if a station name is generic (S + numbers)
+        
+        Args:
+            name (str): Station name to check
+            
+        Returns:
+            bool: True if the name is generic
+        """
+        # Pattern matches: Starts with 'S' or 's', followed by only numbers
+        pattern = r'^[Ss]\d+$'
+        return bool(re.match(pattern, name.strip()))
+        
     def get_station_names(self) -> List[str]:
-        """Get list of all station names"""
+        """Get list of all meaningful station names (excluding generic ones)"""
         response = requests.get(f"{self.base_url}/jn?pw={self._get_password_hash()}")
         if response.ok:
             data = response.json()
-            return data.get("snames", [])
+            all_names = data.get("snames", [])
+            # Filter out generic names and empty strings
+            return [name for name in all_names 
+                   if name.strip() and not self._is_generic_station_name(name)]
         return []
         
-
-
-
     def get_station_status(self) -> List[bool]:
         """Get status of all stations (on/off)"""
         response = requests.get(f"{self.base_url}/js?pw={self._get_password_hash()}")
         if response.ok:
             data = response.json()
-            return data.get("sn", [])  # List of 0/1 values
+            all_status = data.get("sn", [])
+            
+            # Get all station names to know which ones to filter
+            response_names = requests.get(f"{self.base_url}/jn?pw={self._get_password_hash()}")
+            if response_names.ok:
+                names_data = response_names.json()
+                all_names = names_data.get("snames", [])
+                
+                # Create list of indices for non-generic stations
+                valid_indices = [i for i, name in enumerate(all_names) 
+                               if name.strip() and not self._is_generic_station_name(name)]
+                
+                # Return status only for non-generic stations
+                return [all_status[i] for i in valid_indices if i < len(all_status)]
+            
         return []
         
-
-
-
     def activate_station(self, station_id: int, duration: int) -> bool:
         """Activate a specific station
         
@@ -91,9 +107,6 @@ class OpenSprinklerAPI:
         response = requests.get(url)
         return response.ok
         
-
-
-
     def deactivate_station(self, station_id: int) -> bool:
         """Deactivate a specific station
         
@@ -106,9 +119,6 @@ class OpenSprinklerAPI:
         url = f"{self.base_url}/cm?pw={self._get_password_hash()}&sid={station_id}&en=0"
         response = requests.get(url)
         return response.ok
-        
-
-
         
     def get_all_data(self) -> Dict:
         """Get all OpenSprinkler data including settings and status"""

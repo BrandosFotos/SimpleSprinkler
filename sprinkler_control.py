@@ -6,6 +6,7 @@ import threading
 import json
 import os
 from opensprinkler_api import OpenSprinklerAPI
+import requests
 
 class SprinklerControl:
     def __init__(self, root):
@@ -47,6 +48,7 @@ class SprinklerControl:
         self.selected_time = tk.IntVar(value=0)
         self.active_sprinklers = {}
         self.station_names = []
+        self.station_indices = {}  # Maps display index to actual station index
         self.status_check_thread = None
         
         # Create main frames
@@ -59,9 +61,6 @@ class SprinklerControl:
         
         # Start status monitoring
         self.start_status_monitoring()
-
-
-
 
     def create_control_frame(self):
         """Create the frame containing sprinkler controls"""
@@ -82,9 +81,6 @@ class SprinklerControl:
         # Label for the dial
         ttk.Label(control_frame, text="Duration (seconds):").grid(row=1, column=0, columnspan=2)
 
-
-
-
     def create_display_frame(self):
         """Create the frame for displaying status messages"""
         display_frame = ttk.Frame(self.root, padding="10")
@@ -97,16 +93,23 @@ class SprinklerControl:
         )
         self.display_label.grid(row=0, column=0, pady=10)
 
-
-
-
-
     def load_stations(self):
         """Load station names from OpenSprinkler"""
         button_frame = ttk.Frame(self.root, padding="10")
         button_frame.grid(row=2, column=0, sticky="nsew")
         
-        # Get station names from API
+        # Get all station names to map indices
+        response = requests.get(f"{self.api.base_url}/jn?pw={self.api._get_password_hash()}")
+        if response.ok:
+            all_names = response.json().get("snames", [])
+            # Create mapping of display index to actual station index
+            display_idx = 0
+            for actual_idx, name in enumerate(all_names):
+                if name.strip() and not self.api._is_generic_station_name(name):
+                    self.station_indices[display_idx] = actual_idx
+                    display_idx += 1
+        
+        # Get filtered station names from API
         self.station_names = self.api.get_station_names()
         
         # Create buttons for each station
@@ -123,23 +126,21 @@ class SprinklerControl:
             btn.grid(row=idx//2, column=idx%2, padx=5, pady=5)
             self.sprinkler_buttons[idx] = btn
 
-
-
-
     def update_time_display(self, *args):
         """Update the display when the dial is adjusted"""
         self.display_label.config(
             text=f"Selected Duration: {self.selected_time.get()} seconds"
         )
 
-
-
-    def toggle_station(self, station_id, name):
+    def toggle_station(self, display_id, name):
         """Toggle a station on/off"""
-        if station_id in self.active_sprinklers:
+        # Get the actual station ID from our mapping
+        station_id = self.station_indices[display_id]
+        
+        if display_id in self.active_sprinklers:
             # Turn off the station
             if self.api.deactivate_station(station_id):
-                del self.active_sprinklers[station_id]
+                del self.active_sprinklers[display_id]
                 self.display_label.config(text=f"Turned off {name}")
                 self.update_button_colors()
         else:
@@ -150,28 +151,22 @@ class SprinklerControl:
                 return
                 
             if self.api.activate_station(station_id, duration):
-                self.active_sprinklers[station_id] = time.time() + duration
+                self.active_sprinklers[display_id] = time.time() + duration
                 self.display_label.config(text=f"Activated {name} for {duration} seconds")
                 self.update_button_colors()
-
-
-
 
     def update_button_colors(self):
         """Update button colors based on station status"""
         try:
             status = self.api.get_station_status()
-            for idx, is_active in enumerate(status):
+            for display_idx, btn in self.sprinkler_buttons.items():
                 style = ttk.Style()
-                if is_active:
-                    style.configure(f'Station{idx}.TButton', background='green')
+                if display_idx < len(status) and status[display_idx]:
+                    style.configure(f'Station{display_idx}.TButton', background='green')
                 else:
-                    style.configure(f'Station{idx}.TButton', background='white')
+                    style.configure(f'Station{display_idx}.TButton', background='white')
         except Exception as e:
             print(f"Error updating status: {e}")
-
-
-
 
     def start_status_monitoring(self):
         """Start a thread to monitor station status"""
@@ -185,15 +180,10 @@ class SprinklerControl:
         self.status_check_thread.daemon = True
         self.status_check_thread.start()
 
-
-
-
 def main():
     root = tk.Tk()
     app = SprinklerControl(root)
     root.mainloop()
-
-
 
 if __name__ == "__main__":
     main() 
