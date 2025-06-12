@@ -1,3 +1,4 @@
 requests>=2.31.0
 pyserial>=3.5
-tkinter 
+tkinter
+RPi.GPIO>=0.7.1
